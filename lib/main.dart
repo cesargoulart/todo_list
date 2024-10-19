@@ -41,6 +41,7 @@ class TodoListScreen extends StatefulWidget {
 class _TodoListScreenState extends State<TodoListScreen> {
   final List<Todo> _todos = [];
   final TextEditingController _controller = TextEditingController();
+  bool _hideCompleted = false;
 
   void _addTodo() {
     if (_controller.text.isNotEmpty) {
@@ -71,6 +72,16 @@ class _TodoListScreenState extends State<TodoListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Todo List'),
+        actions: [
+          IconButton(
+            icon: Icon(_hideCompleted ? Icons.visibility : Icons.visibility_off),
+            onPressed: () {
+              setState(() {
+                _hideCompleted = !_hideCompleted;
+              });
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -98,6 +109,9 @@ class _TodoListScreenState extends State<TodoListScreen> {
               itemCount: _todos.length,
               itemBuilder: (context, index) {
                 final todo = _todos[index];
+                if (_hideCompleted && todo.isDone) {
+                  return Container(); // Return an empty container for hidden items
+                }
                 return ListTile(
                   title: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
