@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart'; // For formatting date and time
 
 void main() {
   runApp(const MyApp());
@@ -15,6 +16,7 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
       ),
       home: const TodoListScreen(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }
@@ -51,8 +53,8 @@ class _TodoListScreenState extends State<TodoListScreen> {
       setState(() {
         _todos.add(Todo(
           title: _controller.text,
-          createdTime: DateTime.now(),
-          deadline: _selectedDeadline,
+          createdTime: DateTime.now(), // Task creation date
+          deadline: _selectedDeadline, // Task deadline
         ));
         _controller.clear();
         _selectedDeadline = null;
@@ -74,29 +76,35 @@ class _TodoListScreenState extends State<TodoListScreen> {
     });
   }
 
-  void _selectDeadline(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
+  // Function to select both date and time for deadline
+  Future<void> _selectDeadline(BuildContext context) async {
+    final DateTime? pickedDate = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
       firstDate: DateTime.now(),
       lastDate: DateTime(2101),
     );
-    if (picked != null && picked != _selectedDeadline) {
-      setState(() {
-        _selectedDeadline = picked;
-      });
+    if (pickedDate != null) {
+      final TimeOfDay? pickedTime = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.now(),
+      );
+      if (pickedTime != null) {
+        setState(() {
+          _selectedDeadline = DateTime(
+            pickedDate.year,
+            pickedDate.month,
+            pickedDate.day,
+            pickedTime.hour,
+            pickedTime.minute,
+          );
+        });
+      }
     }
   }
 
   List<Todo> _getSortedTodos() {
-    List<Todo> sortedTodos = List.from(_todos);
-    sortedTodos.sort((a, b) {
-      if (a.deadline == null && b.deadline == null) return 0;
-      if (a.deadline == null) return 1;
-      if (b.deadline == null) return -1;
-      return a.deadline!.compareTo(b.deadline!);
-    });
-    return sortedTodos;
+    return _todos.where((todo) => !_hideCompleted || !todo.isDone).toList();
   }
 
   @override
@@ -106,7 +114,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
         title: const Text('Todo List'),
         actions: [
           IconButton(
-            icon: Icon(_hideCompleted ? Icons.visibility : Icons.visibility_off),
+            icon: Icon(_hideCompleted ? Icons.visibility_off : Icons.visibility),
             onPressed: () {
               setState(() {
                 _hideCompleted = !_hideCompleted;
@@ -118,76 +126,65 @@ class _TodoListScreenState extends State<TodoListScreen> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(8.0),
+            padding: const EdgeInsets.all(16.0),
             child: Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _controller,
                     decoration: const InputDecoration(
-                      labelText: 'Enter todo',
+                      labelText: 'New Todo',
                     ),
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.calendar_today),
+                  icon: const Icon(Icons.date_range),
                   onPressed: () => _selectDeadline(context),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.add),
+                ElevatedButton(
                   onPressed: _addTodo,
+                  child: const Text('Add'),
                 ),
               ],
             ),
           ),
+          if (_selectedDeadline != null)
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text(
+                'Selected Deadline: ${DateFormat('yyyy-MM-dd HH:mm').format(_selectedDeadline!)}',
+                style: const TextStyle(fontSize: 16),
+              ),
+            ),
           Expanded(
             child: ListView.builder(
               itemCount: _getSortedTodos().length,
-              itemBuilder: (context, sortedIndex) {
-                final todo = _getSortedTodos()[sortedIndex];
-                if (_hideCompleted && todo.isDone) {
-                  return Container(); // Return an empty container for hidden items
-                }
+              itemBuilder: (context, index) {
+                final todo = _getSortedTodos()[index];
                 return ListTile(
-                  title: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        todo.title,
-                        style: TextStyle(
-                          decoration: todo.isDone
-                              ? TextDecoration.lineThrough
-                              : TextDecoration.none,
-                        ),
-                      ),
-                      Text(
-                        'Created at: ${todo.createdTime.hour}:${todo.createdTime.minute}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      if (todo.deadline != null)
-                        Text(
-                          'Deadline: ${todo.deadline!.day}/${todo.deadline!.month}/${todo.deadline!.year}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.red,
-                          ),
-                        ),
-                    ],
-                  ),
                   leading: Checkbox(
                     value: todo.isDone,
-                    onChanged: (value) {
-                      _toggleTodoStatus(sortedIndex);
-                    },
+                    onChanged: (_) => _toggleTodoStatus(index),
+                  ),
+                  title: Text(
+                    todo.title,
+                    style: TextStyle(
+                      decoration: todo.isDone
+                          ? TextDecoration.lineThrough
+                          : TextDecoration.none,
+                    ),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Created: ${DateFormat('yyyy-MM-dd HH:mm').format(todo.createdTime)}'),
+                      if (todo.deadline != null)
+                        Text('Deadline: ${DateFormat('yyyy-MM-dd HH:mm').format(todo.deadline!)}'),
+                    ],
                   ),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete),
-                    onPressed: () {
-                      _removeTodoItem(sortedIndex);
-                    },
+                    onPressed: () => _removeTodoItem(index),
                   ),
                 );
               },
