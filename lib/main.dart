@@ -38,6 +38,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
   final List<Todo> _todos = [];
   final TextEditingController _controller = TextEditingController();
   bool _hideCompleted = false;
+  bool _hideTasksOverThreeDays = false;  // New state variable for the 3-day filter
   DateTime? _selectedDeadline;
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
@@ -89,6 +90,35 @@ class _TodoListScreenState extends State<TodoListScreen> {
     });
   }
 
+  // Function to filter tasks with deadlines over 3 days from now
+  List<Todo> _getSortedTodos() {
+    List<Todo> sortedTodos = List.from(_todos);
+    sortedTodos.sort((a, b) {
+      if (a.deadline == null && b.deadline == null) return 0;
+      if (a.deadline == null) return 1;
+      if (b.deadline == null) return -1;
+      return a.deadline!.compareTo(b.deadline!);
+    });
+
+    if (_hideTasksOverThreeDays) {
+      final now = DateTime.now();
+      final threeDaysLater = now.add(const Duration(days: 3));
+      sortedTodos = sortedTodos.where((todo) {
+        if (todo.deadline == null) return true;  // Keep tasks with no deadline
+        return todo.deadline!.isBefore(threeDaysLater);  // Filter out tasks with deadlines > 3 days
+      }).toList();
+    }
+
+    return sortedTodos;
+  }
+
+  // Function to toggle the 3-day deadline filter
+  void _toggleThreeDayFilter() {
+    setState(() {
+      _hideTasksOverThreeDays = !_hideTasksOverThreeDays;
+    });
+  }
+
   void _selectDeadline(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -113,17 +143,6 @@ class _TodoListScreenState extends State<TodoListScreen> {
         });
       }
     }
-  }
-
-  List<Todo> _getSortedTodos() {
-    List<Todo> sortedTodos = List.from(_todos);
-    sortedTodos.sort((a, b) {
-      if (a.deadline == null && b.deadline == null) return 0;
-      if (a.deadline == null) return 1;
-      if (b.deadline == null) return -1;
-      return a.deadline!.compareTo(b.deadline!);
-    });
-    return sortedTodos;
   }
 
   @override
@@ -165,6 +184,14 @@ class _TodoListScreenState extends State<TodoListScreen> {
                   onPressed: _addTodo,
                 ),
               ],
+            ),
+          ),
+          ElevatedButton(
+            onPressed: _toggleThreeDayFilter,  // Button to toggle the 3-day filter
+            child: Text(
+              _hideTasksOverThreeDays
+                  ? 'Show All Tasks'
+                  : 'Hide Tasks with Deadline > 3 Days',
             ),
           ),
           Expanded(
@@ -209,7 +236,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
                     onChanged: (value) {
                       _toggleTodoStatus(sortedIndex);
                     },
-                  ),
+                  )5
                   trailing: IconButton(
                     icon: const Icon(Icons.delete),
                     onPressed: () {
