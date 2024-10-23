@@ -236,7 +236,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
                     onChanged: (value) {
                       _toggleTodoStatus(sortedIndex);
                     },
-                  )5
+                  ),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete),
                     onPressed: () {
