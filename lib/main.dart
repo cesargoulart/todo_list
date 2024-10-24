@@ -1,14 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'database_helper.dart';
 import 'todo.dart';
+import 'dart:io'; // Import Platform class
 
 void main() {
-  // Initialize FFI
-  sqfliteFfiInit();
-  // Change the default factory
-  databaseFactory = databaseFactoryFfi;
+  // Check the platform and initialize the database accordingly
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    // Initialize FFI for desktop platforms
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  } else {
+    // Use the default database factory for mobile platforms
+    databaseFactory = databaseFactory;
+  }
+
   runApp(const MyApp());
 }
 
@@ -38,7 +46,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
   final List<Todo> _todos = [];
   final TextEditingController _controller = TextEditingController();
   bool _hideCompleted = false;
-  bool _hideTasksOverThreeDays = false;  // New state variable for the 3-day filter
+  bool _hideTasksOverThreeDays = false; // New state variable for the 3-day filter
   DateTime? _selectedDeadline;
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
@@ -104,8 +112,8 @@ class _TodoListScreenState extends State<TodoListScreen> {
       final now = DateTime.now();
       final threeDaysLater = now.add(const Duration(days: 3));
       sortedTodos = sortedTodos.where((todo) {
-        if (todo.deadline == null) return true;  // Keep tasks with no deadline
-        return todo.deadline!.isBefore(threeDaysLater);  // Filter out tasks with deadlines > 3 days
+        if (todo.deadline == null) return true; // Keep tasks with no deadline
+        return todo.deadline!.isBefore(threeDaysLater); // Filter out tasks with deadlines > 3 days
       }).toList();
     }
 
@@ -159,6 +167,14 @@ class _TodoListScreenState extends State<TodoListScreen> {
               });
             },
           ),
+          IconButton(
+            icon: Icon(_hideTasksOverThreeDays ? Icons.visibility : Icons.visibility_off),
+            onPressed: () {
+              setState(() {
+                _hideTasksOverThreeDays = !_hideTasksOverThreeDays;
+              });
+            },
+          ),
         ],
       ),
       body: Column(
@@ -187,7 +203,7 @@ class _TodoListScreenState extends State<TodoListScreen> {
             ),
           ),
           ElevatedButton(
-            onPressed: _toggleThreeDayFilter,  // Button to toggle the 3-day filter
+            onPressed: _toggleThreeDayFilter, // Button to toggle the 3-day filter
             child: Text(
               _hideTasksOverThreeDays
                   ? 'Show All Tasks'
