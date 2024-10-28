@@ -5,6 +5,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'database_helper.dart';
 import 'todo.dart';
 import 'dart:io'; // Import Platform class
+import 'dart:async'; // Import Timer
 
 void main() {
   // Check the platform and initialize the database accordingly
@@ -42,18 +43,29 @@ class TodoListScreen extends StatefulWidget {
   _TodoListScreenState createState() => _TodoListScreenState();
 }
 
+
+
 class _TodoListScreenState extends State<TodoListScreen> {
   final List<Todo> _todos = [];
   final TextEditingController _controller = TextEditingController();
   bool _hideCompleted = false;
   bool _hideTasksOverThreeDays = false; // New state variable for the 3-day filter
   DateTime? _selectedDeadline;
+  String _selectedCategory = 'General'; // New state variable for category
   final DatabaseHelper _dbHelper = DatabaseHelper();
+  Timer? _deadlineTimer; // Timer to check deadlines
 
   @override
   void initState() {
     super.initState();
     _loadTodos();
+    _startDeadlineTimer(); // Start the timer
+  }
+
+  @override
+  void dispose() {
+    _deadlineTimer?.cancel(); // Cancel the timer when the widget is disposed
+    super.dispose();
   }
 
   Future<void> _loadTodos() async {
@@ -63,18 +75,55 @@ class _TodoListScreenState extends State<TodoListScreen> {
     });
   }
 
+  void _startDeadlineTimer() {
+    _deadlineTimer = Timer.periodic(Duration(minutes: 1), (timer) {
+      _checkDeadlines();
+    });
+  }
+
+  void _checkDeadlines() {
+    final now = DateTime.now();
+    for (final todo in _todos) {
+      if (todo.deadline != null && todo.deadline!.isBefore(now) && !todo.isDone) {
+        _showDeadlineDialog(todo);
+      }
+    }
+  }
+
+  void _showDeadlineDialog(Todo todo) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Deadline Reached'),
+          content: Text('The deadline for "${todo.title}" has been reached.'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _addTodo() async {
     if (_controller.text.isNotEmpty) {
       final newTodo = Todo(
         title: _controller.text,
         createdTime: DateTime.now(),
         deadline: _selectedDeadline,
+        category: _selectedCategory, // New field
       );
       final id = await _dbHelper.insertTodo(newTodo);
       setState(() {
         _todos.add(newTodo..id = id);
         _controller.clear();
         _selectedDeadline = null;
+        _selectedCategory = 'General'; // Reset category
       });
     }
   }
@@ -195,6 +244,21 @@ class _TodoListScreenState extends State<TodoListScreen> {
                   icon: const Icon(Icons.calendar_today),
                   onPressed: () => _selectDeadline(context),
                 ),
+                DropdownButton<String>(
+                  value: _selectedCategory,
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      _selectedCategory = newValue!;
+                    });
+                  },
+                  items: <String>['General', 'Work', 'Personal', 'Shopping']
+                      .map<DropdownMenuItem<String>>((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                ),
                 IconButton(
                   icon: const Icon(Icons.add),
                   onPressed: _addTodo,
@@ -245,6 +309,13 @@ class _TodoListScreenState extends State<TodoListScreen> {
                             color: Colors.red,
                           ),
                         ),
+                      Text(
+                        'Category: ${todo.category}', // Display category
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.blue,
+                        ),
+                      ),
                     ],
                   ),
                   leading: Checkbox(

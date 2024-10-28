@@ -4,6 +4,7 @@ class Todo {
   bool isDone;
   DateTime createdTime;
   DateTime? deadline;
+  String category; // New field
 
   Todo({
     this.id,
@@ -11,6 +12,9 @@ class Todo {
     this.isDone = false,
     required this.createdTime,
     this.deadline,
+    this.category = 'General', // New parameter with default value
+    
+    
   });
 
   Map<String, dynamic> toMap() {
