@@ -127,6 +127,87 @@ class _TodoListScreenState extends State<TodoListScreen> {
       });
     }
   }
+void _editTodo(Todo todo) async {
+  // Store the current values temporarily
+  final TextEditingController editController = TextEditingController(text: todo.title);
+  DateTime? editDeadline = todo.deadline;
+  String editCategory = todo.category;
+
+  await showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Edit Todo'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: editController,
+            decoration: const InputDecoration(labelText: 'Task'),
+          ),
+          // Add deadline picker
+          ElevatedButton(
+            onPressed: () async {
+              final DateTime? picked = await showDatePicker(
+                context: context,
+                initialDate: editDeadline ?? DateTime.now(),
+                firstDate: DateTime.now(),
+                lastDate: DateTime(2101),
+              );
+              if (picked != null) {
+                editDeadline = picked;
+              }
+            },
+            child: const Text('Select Deadline'),
+          ),
+          // Add category dropdown
+          DropdownButton<String>(
+            value: editCategory,
+            items: ['General', 'Work', 'Personal'] // Add your categories
+                .map((String value) {
+              return DropdownMenuItem<String>(
+                value: value,
+                child: Text(value),
+              );
+            }).toList(),
+            onChanged: (String? newValue) {
+              if (newValue != null) {
+                editCategory = newValue;
+              }
+            },
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () async {
+            if (editController.text.isNotEmpty) {
+              todo.title = editController.text;
+              todo.deadline = editDeadline;
+              todo.category = editCategory;
+              
+              await _dbHelper.updateTodo(todo);
+              
+              setState(() {
+                // Update the todo in the list
+                final index = _todos.indexWhere((t) => t.id == todo.id);
+                if (index != -1) {
+                  _todos[index] = todo;
+                }
+              });
+              
+              Navigator.pop(context);
+            }
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  );
+}
 
   void _toggleTodoStatus(int sortedIndex) async {
     final originalIndex = _todos.indexOf(_getSortedTodos()[sortedIndex]);
@@ -283,54 +364,65 @@ class _TodoListScreenState extends State<TodoListScreen> {
                   return Container(); // Return an empty container for hidden items
                 }
                 return ListTile(
-                  title: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        todo.title,
-                        style: TextStyle(
-                          decoration: todo.isDone
-                              ? TextDecoration.lineThrough
-                              : TextDecoration.none,
-                        ),
-                      ),
-                      Text(
-                        'Created at: ${DateFormat('yyyy-MM-dd HH:mm').format(todo.createdTime)}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      if (todo.deadline != null)
-                        Text(
-                          'Deadline: ${DateFormat('yyyy-MM-dd HH:mm').format(todo.deadline!)}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.red,
-                          ),
-                        ),
-                      Text(
-                        'Category: ${todo.category}', // Display category
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.blue,
-                        ),
-                      ),
-                    ],
-                  ),
-                  leading: Checkbox(
-                    value: todo.isDone,
-                    onChanged: (value) {
-                      _toggleTodoStatus(sortedIndex);
-                    },
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete),
-                    onPressed: () {
-                      _removeTodoItem(sortedIndex);
-                    },
-                  ),
-                );
+  title: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        todo.title,
+        style: TextStyle(
+          decoration: todo.isDone
+              ? TextDecoration.lineThrough
+              : TextDecoration.none,
+        ),
+      ),
+      Text(
+        'Created at: ${DateFormat('yyyy-MM-dd HH:mm').format(todo.createdTime)}',
+        style: TextStyle(
+          fontSize: 12,
+          color: Colors.grey,
+        ),
+      ),
+      if (todo.deadline != null)
+        Text(
+          'Deadline: ${DateFormat('yyyy-MM-dd HH:mm').format(todo.deadline!)}',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.red,
+          ),
+        ),
+      Text(
+        'Category: ${todo.category}',
+        style: TextStyle(
+          fontSize: 12,
+          color: Colors.blue,
+        ),
+      ),
+    ],
+  ),
+  leading: Checkbox(
+    value: todo.isDone,
+    onChanged: (value) {
+      _toggleTodoStatus(sortedIndex);
+    },
+  ),
+  // Replace the existing trailing with this:
+  trailing: Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      IconButton(
+        icon: const Icon(Icons.edit),
+        onPressed: () => _editTodo(todo),
+      ),
+      IconButton(
+        icon: const Icon(Icons.delete),
+        onPressed: () {
+          _removeTodoItem(sortedIndex);
+        },
+      ),
+    ],
+  ),
+);
+
               },
             ),
           ),

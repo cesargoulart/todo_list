@@ -10,32 +10,44 @@ class DatabaseHelper {
 
   DatabaseHelper._internal();
 
+
+
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDatabase();
     return _database!;
   }
 
-  Future<Database> _initDatabase() async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'todo.db');
+Future<Database> _initDatabase() async {
+  final dbPath = await getDatabasesPath();
+  final path = join(dbPath, 'todo.db');
 
-    return await openDatabase(
-      path,
-      version: 1,
-      onCreate: (db, version) async {
-        await db.execute('''
-          CREATE TABLE todos(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            isDone INTEGER,
-            createdTime TEXT,
-            deadline TEXT
-          )
-        ''');
-      },
-    );
-  }
+  return await openDatabase(
+    path,
+    version: 2, // Increment the version number
+    onCreate: (db, version) async {
+      await db.execute('''
+        CREATE TABLE todos(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT,
+          isDone INTEGER,
+          createdTime TEXT,
+          deadline TEXT,
+          category TEXT
+        )
+      ''');
+    },
+    onUpgrade: (db, oldVersion, newVersion) async {
+      if (oldVersion < 2) {
+        // Add the category column to existing table
+        await db.execute('ALTER TABLE todos ADD COLUMN category TEXT DEFAULT "General"');
+      }
+    },
+  );
+}
+
+
+  
 
   Future<int> insertTodo(Todo todo) async {
     final db = await database;

@@ -5,6 +5,8 @@ class Todo {
   DateTime createdTime;
   DateTime? deadline;
   String category; // New field
+ 
+
 
   Todo({
     this.id,
@@ -13,6 +15,7 @@ class Todo {
     required this.createdTime,
     this.deadline,
     this.category = 'General', // New parameter with default value
+
     
     
   });
@@ -24,6 +27,7 @@ class Todo {
       'isDone': isDone ? 1 : 0,
       'createdTime': createdTime.toIso8601String(),
       'deadline': deadline?.toIso8601String(),
+      'category': category,
     };
   }
 
