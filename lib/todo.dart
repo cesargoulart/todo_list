@@ -1,29 +1,29 @@
+// FILE: todo.dart
+
 class Todo {
   int? id;
   String title;
-  bool isDone;
+  String description;
   DateTime createdTime;
   DateTime? deadline;
-  String category; // New field
- 
-
+  bool isDone;
+  String category;
 
   Todo({
     this.id,
     required this.title,
-    this.isDone = false,
+    required this.description,
     required this.createdTime,
     this.deadline,
-    this.category = 'General', // New parameter with default value
-
-    
-    
+    this.isDone = false,
+    this.category = 'General',
   });
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'title': title,
+      'description': description,
       'isDone': isDone ? 1 : 0,
       'createdTime': createdTime.toIso8601String(),
       'deadline': deadline?.toIso8601String(),
@@ -34,10 +34,12 @@ class Todo {
   factory Todo.fromMap(Map<String, dynamic> map) {
     return Todo(
       id: map['id'],
-      title: map['title'],
+      title: map['title'] ?? '',
+      description: map['description'] ?? '',
       isDone: map['isDone'] == 1,
       createdTime: DateTime.parse(map['createdTime']),
       deadline: map['deadline'] != null ? DateTime.parse(map['deadline']) : null,
+      category: map['category'] ?? 'General', // Provide a default value if null
     );
   }
 }

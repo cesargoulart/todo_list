@@ -1,20 +1,20 @@
+// FILE: main.dart
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'database_helper.dart';
 import 'todo.dart';
-import 'dart:io'; // Import Platform class
-import 'dart:async'; // Import Timer
+import 'dart:io';
+import 'dart:async';
+import 'repeat_helper.dart';
 
 void main() {
-  // Check the platform and initialize the database accordingly
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-    // Initialize FFI for desktop platforms
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   } else {
-    // Use the default database factory for mobile platforms
     databaseFactory = databaseFactory;
   }
 
@@ -43,28 +43,26 @@ class TodoListScreen extends StatefulWidget {
   _TodoListScreenState createState() => _TodoListScreenState();
 }
 
-
-
 class _TodoListScreenState extends State<TodoListScreen> {
   final List<Todo> _todos = [];
   final TextEditingController _controller = TextEditingController();
   bool _hideCompleted = false;
-  bool _hideTasksOverThreeDays = false; // New state variable for the 3-day filter
+  bool _hideTasksOverThreeDays = false;
   DateTime? _selectedDeadline;
-  String _selectedCategory = 'General'; // New state variable for category
+  String _selectedCategory = 'General';
   final DatabaseHelper _dbHelper = DatabaseHelper();
-  Timer? _deadlineTimer; // Timer to check deadlines
+  Timer? _deadlineTimer;
 
   @override
   void initState() {
     super.initState();
     _loadTodos();
-    _startDeadlineTimer(); // Start the timer
+    _startDeadlineTimer();
   }
 
   @override
   void dispose() {
-    _deadlineTimer?.cancel(); // Cancel the timer when the widget is disposed
+    _deadlineTimer?.cancel();
     super.dispose();
   }
 
@@ -114,100 +112,98 @@ class _TodoListScreenState extends State<TodoListScreen> {
     if (_controller.text.isNotEmpty) {
       final newTodo = Todo(
         title: _controller.text,
+        description: '',
         createdTime: DateTime.now(),
         deadline: _selectedDeadline,
-        category: _selectedCategory, // New field
+        category: _selectedCategory,
       );
       final id = await _dbHelper.insertTodo(newTodo);
       setState(() {
         _todos.add(newTodo..id = id);
         _controller.clear();
         _selectedDeadline = null;
-        _selectedCategory = 'General'; // Reset category
+        _selectedCategory = 'General';
       });
     }
   }
-void _editTodo(Todo todo) async {
-  // Store the current values temporarily
-  final TextEditingController editController = TextEditingController(text: todo.title);
-  DateTime? editDeadline = todo.deadline;
-  String editCategory = todo.category;
 
-  await showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Edit Todo'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: editController,
-            decoration: const InputDecoration(labelText: 'Task'),
+  void _editTodo(Todo todo) async {
+    final TextEditingController editController = TextEditingController(text: todo.title);
+    DateTime? editDeadline = todo.deadline;
+    String editCategory = todo.category;
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Todo'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: editController,
+              decoration: const InputDecoration(labelText: 'Task'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final DateTime? picked = await showDatePicker(
+                  context: context,
+                  initialDate: editDeadline ?? DateTime.now(),
+                  firstDate: DateTime.now(),
+                  lastDate: DateTime(2101),
+                );
+                if (picked != null) {
+                  editDeadline = picked;
+                }
+              },
+              child: const Text('Select Deadline'),
+            ),
+            DropdownButton<String>(
+              value: editCategory,
+              items: ['General', 'Work', 'Personal']
+                  .map((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(value),
+                );
+              }).toList(),
+              onChanged: (String? newValue) {
+                if (newValue != null) {
+                  editCategory = newValue;
+                }
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
           ),
-          // Add deadline picker
-          ElevatedButton(
+          TextButton(
             onPressed: () async {
-              final DateTime? picked = await showDatePicker(
-                context: context,
-                initialDate: editDeadline ?? DateTime.now(),
-                firstDate: DateTime.now(),
-                lastDate: DateTime(2101),
-              );
-              if (picked != null) {
-                editDeadline = picked;
+              if (editController.text.isNotEmpty) {
+                todo.title = editController.text;
+                todo.deadline = editDeadline;
+                todo.category = editCategory;
+
+                await _dbHelper.updateTodo(todo);
+
+                setState(() {
+                  final index = _todos.indexWhere((t) => t.id == todo.id);
+                  if (index != -1) {
+                    _todos[index] = todo;
+                  }
+                });
+
+                Navigator.pop(context);
               }
             },
-            child: const Text('Select Deadline'),
-          ),
-          // Add category dropdown
-          DropdownButton<String>(
-            value: editCategory,
-            items: ['General', 'Work', 'Personal'] // Add your categories
-                .map((String value) {
-              return DropdownMenuItem<String>(
-                value: value,
-                child: Text(value),
-              );
-            }).toList(),
-            onChanged: (String? newValue) {
-              if (newValue != null) {
-                editCategory = newValue;
-              }
-            },
+            child: const Text('Save'),
           ),
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () async {
-            if (editController.text.isNotEmpty) {
-              todo.title = editController.text;
-              todo.deadline = editDeadline;
-              todo.category = editCategory;
-              
-              await _dbHelper.updateTodo(todo);
-              
-              setState(() {
-                // Update the todo in the list
-                final index = _todos.indexWhere((t) => t.id == todo.id);
-                if (index != -1) {
-                  _todos[index] = todo;
-                }
-              });
-              
-              Navigator.pop(context);
-            }
-          },
-          child: const Text('Save'),
-        ),
-      ],
-    ),
-  );
-}
+    );
+  }
 
   void _toggleTodoStatus(int sortedIndex) async {
     final originalIndex = _todos.indexOf(_getSortedTodos()[sortedIndex]);
@@ -228,7 +224,6 @@ void _editTodo(Todo todo) async {
     });
   }
 
-  // Function to filter tasks with deadlines over 3 days from now
   List<Todo> _getSortedTodos() {
     List<Todo> sortedTodos = List.from(_todos);
     sortedTodos.sort((a, b) {
@@ -242,15 +237,14 @@ void _editTodo(Todo todo) async {
       final now = DateTime.now();
       final threeDaysLater = now.add(const Duration(days: 3));
       sortedTodos = sortedTodos.where((todo) {
-        if (todo.deadline == null) return true; // Keep tasks with no deadline
-        return todo.deadline!.isBefore(threeDaysLater); // Filter out tasks with deadlines > 3 days
+        if (todo.deadline == null) return true;
+        return todo.deadline!.isBefore(threeDaysLater);
       }).toList();
     }
 
     return sortedTodos;
   }
 
-  // Function to toggle the 3-day deadline filter
   void _toggleThreeDayFilter() {
     setState(() {
       _hideTasksOverThreeDays = !_hideTasksOverThreeDays;
@@ -348,7 +342,7 @@ void _editTodo(Todo todo) async {
             ),
           ),
           ElevatedButton(
-            onPressed: _toggleThreeDayFilter, // Button to toggle the 3-day filter
+            onPressed: _toggleThreeDayFilter,
             child: Text(
               _hideTasksOverThreeDays
                   ? 'Show All Tasks'
@@ -361,68 +355,66 @@ void _editTodo(Todo todo) async {
               itemBuilder: (context, sortedIndex) {
                 final todo = _getSortedTodos()[sortedIndex];
                 if (_hideCompleted && todo.isDone) {
-                  return Container(); // Return an empty container for hidden items
+                  return Container();
                 }
                 return ListTile(
-  title: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        todo.title,
-        style: TextStyle(
-          decoration: todo.isDone
-              ? TextDecoration.lineThrough
-              : TextDecoration.none,
-        ),
-      ),
-      Text(
-        'Created at: ${DateFormat('yyyy-MM-dd HH:mm').format(todo.createdTime)}',
-        style: TextStyle(
-          fontSize: 12,
-          color: Colors.grey,
-        ),
-      ),
-      if (todo.deadline != null)
-        Text(
-          'Deadline: ${DateFormat('yyyy-MM-dd HH:mm').format(todo.deadline!)}',
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.red,
-          ),
-        ),
-      Text(
-        'Category: ${todo.category}',
-        style: TextStyle(
-          fontSize: 12,
-          color: Colors.blue,
-        ),
-      ),
-    ],
-  ),
-  leading: Checkbox(
-    value: todo.isDone,
-    onChanged: (value) {
-      _toggleTodoStatus(sortedIndex);
-    },
-  ),
-  // Replace the existing trailing with this:
-  trailing: Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      IconButton(
-        icon: const Icon(Icons.edit),
-        onPressed: () => _editTodo(todo),
-      ),
-      IconButton(
-        icon: const Icon(Icons.delete),
-        onPressed: () {
-          _removeTodoItem(sortedIndex);
-        },
-      ),
-    ],
-  ),
-);
-
+                  title: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        todo.title,
+                        style: TextStyle(
+                          decoration: todo.isDone
+                              ? TextDecoration.lineThrough
+                              : TextDecoration.none,
+                        ),
+                      ),
+                      Text(
+                        'Created at: ${DateFormat('yyyy-MM-dd HH:mm').format(todo.createdTime)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      if (todo.deadline != null)
+                        Text(
+                          'Deadline: ${DateFormat('yyyy-MM-dd HH:mm').format(todo.deadline!)}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.red,
+                          ),
+                        ),
+                      Text(
+                        'Category: ${todo.category}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.blue,
+                        ),
+                      ),
+                    ],
+                  ),
+                  leading: Checkbox(
+                    value: todo.isDone,
+                    onChanged: (value) {
+                      _toggleTodoStatus(sortedIndex);
+                    },
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit),
+                        onPressed: () => _editTodo(todo),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete),
+                        onPressed: () {
+                          _removeTodoItem(sortedIndex);
+                        },
+                      ),
+                    ],
+                  ),
+                );
               },
             ),
           ),
